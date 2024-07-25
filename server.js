@@ -1,90 +1,71 @@
-const express = require('express');
-const bodyParser = require('body-parser');
-const mysql = require('mysql');
-const bcrypt = require('bcryptjs');
-const jwt = require('jsonwebtoken');
-const cors = require('cors');
-const path = require('path');
+import express from "express";
+import bodyParser from "body-parser";
+import mysql from "mysql";
+import { resolve } from "path";
+import csrf from "csrf";
+import cors from "cors";
+import authRoute from "./modules/auth/authRoute.js";
+import helmet from "helmet";
+import dashboardRoute from "./modules/dashboard/dashboardRoute.js";
+
+const tokens = new csrf();
+const secret = tokens.secretSync();
 
 const app = express();
 const port = 3000;
 const corsOptions = {
-    origin: 'http://localhost:5173',
-    methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
-    credentials: true,
-    optionsSuccessStatus: 204
-}
+  origin: "http://localhost:5173",
+  methods: "GET,HEAD,PUT,PATCH,POST,DELETE",
+  credentials: true,
+  optionsSuccessStatus: 204,
+};
 // Middleware
-
-app.use(bodyParser.json())
-app.use(cors(corsOptions))
+app.use(helmet());
+app.use(bodyParser.json());
+app.use(cors(corsOptions));
 app.use(bodyParser.urlencoded({ extended: true }));
 
+app.use(function (req, res, next) {
+  const { csrf } = req.headers;
+  if (req.method !== "GET" && !tokens.verify(secret, csrf)) {
+    return res.status(403).json({ error: "Jeton CSRF invalide !" });
+  }
+  next();
+});
+
 // MySQL Connection
-const db = mysql.createConnection({
-  host: 'localhost',
-  user: 'root',
-  password: 'HJndezo78ZDBJ',
-  database: 'garage_db'
+export const db = mysql.createConnection({
+  host: "localhost",
+  user: "root",
+  password: "",
+  database: "garage_db",
 });
 
 db.connect((err) => {
   if (err) throw err;
-  console.log('Connected to MySQL Database');
+  console.log("Connected to MySQL Database");
 });
 
-// Routes
-app.post('/api/signup', (req, res) => {
-  const { lastname, firstname, email, password } = req.body;
-  const hashedPassword = bcrypt.hashSync(password, 8);
+app.use(authRoute);
+app.use(dashboardRoute);
 
-  const sql = 'INSERT INTO users (lastname, firstname, email, password) VALUES (?, ?, ?, ?)';
-  db.query(sql, [lastname, firstname, email, hashedPassword], (err, result) => {
-    if (err) {
-      console.error(err);
-      res.status(500).send('Server error');
-      return;
-    }
-    res.status(201).send('User registered');
-  });
+app.get("/api/csrf-token", (req, res) => {
+  // Générer un jeton CSRF
+  const csrfToken = tokens.create(secret);
+  // Renvoyer le jeton CSRF dans la réponse
+  res.json({ csrfToken });
 });
 
-app.post('/api/signin', (req, res) => {
-  const { email, password } = req.body;
+const __dirname = process.cwd();
 
-  const sql = 'SELECT * FROM users WHERE email = ?';
-  db.query(sql, [email], (err, results) => {
-    if (err) {
-      console.error(err);
-      res.status(500).send('Server error');
-      return;
-    }
-
-    if (results.length === 0) {
-      res.status(404).send('User not found');
-      return;
-    }
-
-    const user = results[0];
-    const passwordIsValid = bcrypt.compareSync(password, user.password);
-
-    if (!passwordIsValid) {
-      res.status(401).send('Invalid password');
-      return;
-    }
-
-    const token = jwt.sign({ id: user.id }, 'secret-key', { expiresIn: 86400 });
-    res.status(200).send({ auth: true, token });
-  });
-});
-
-app.use(express.static(path.join(__dirname, "./client/dist")))
+app.use(express.static(resolve(__dirname, "./client/dist")));
 app.get("*", (_, res) => {
-    res.sendFile(
-      path.join(__dirname, "./client/dist/index.html")
-    )
-})
+  res.sendFile(resolve(__dirname, "./client/dist/index.html"));
+});
+
 // Start server
 app.listen(port, () => {
   console.log(`Server running on port ${port}`);
 });
+
+export default app;

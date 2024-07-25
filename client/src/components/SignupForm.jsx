@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import './SignupForm.css';
 const baseURI = import.meta.env.VITE_API_BASE_URL
 
@@ -9,6 +9,28 @@ const SignupForm = () => {
     email: '',
     password: ''
   });
+
+  const [csrfToken, setCsrfToken] = useState("")
+
+    useEffect(() => {
+
+      fetch(baseURI + 'api/csrf-token', {
+        method: 'GET', 
+        headers: {
+          'Content-Type': 'application/json', 
+        },
+      })
+      .then(response => response.json()) 
+      .then(data => {
+        setCsrfToken(data.csrfToken)
+      })
+      .catch(error => {
+        console.error('Erreur lors de la récupération du CSRF token:', error);
+      });
+    }, []);
+
+
+
 
   const handleChange = (e) => {
     setFormData({
@@ -23,7 +45,8 @@ const SignupForm = () => {
       const response = await fetch(baseURI + 'api/signup', {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
+          CSRF: csrfToken
         },
         body: JSON.stringify(formData)
       });

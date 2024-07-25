@@ -1,11 +1,40 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import './SigninForm.css';
+import { useContext } from 'react';
+import { AuthContext } from '../store/AuthContext';
+import { useCookies } from "react-cookie";
+import { useNavigate } from 'react-router';
+
 const baseURI = import.meta.env.VITE_API_BASE_URL
 const SigninForm = () => {
+  const { setCurrentUser } = useContext(AuthContext);
+  const navigate = useNavigate()
+  const [cookies,setCookie] = useCookies();
   const [formData, setFormData] = useState({
     email: '',
     password: ''
   });
+
+
+  const [csrfToken, setCsrfToken] = useState("")
+
+  useEffect(() => {
+
+    fetch(baseURI + 'api/csrf-token', {
+      method: 'GET', 
+      headers: {
+        'Content-Type': 'application/json', 
+      },
+    })
+    .then(response => response.json()) 
+    .then(data => {
+      setCsrfToken(data.csrfToken)
+    })
+    .catch(error => {
+      console.error('Erreur lors de la récupération du CSRF token:', error);
+    });
+  }, []);
+
 
   const handleChange = (e) => {
     setFormData({
@@ -20,12 +49,17 @@ const SigninForm = () => {
       const response = await fetch(baseURI + 'api/signin', {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
+          CSRF: csrfToken
         },
         body: JSON.stringify(formData)
       });
       if (response.ok) {
-        alert('Connexion réussie');
+        const data = await response.json();
+        setCookie("token", data.token)
+        setCurrentUser({auth: true})
+        navigate('/dashboard')
+
       } else {
         alert('Erreur lors de la connexion');
       }

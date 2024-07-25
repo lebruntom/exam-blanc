@@ -1,0 +1,10 @@
+.dashboard-title {
+  font-size: 20px;
+  margin-top: 10px;
+}
+.dashboard_line {
+  display: flex;
+}
+.dashboard_line div {
+  margin: 10px;
+}
